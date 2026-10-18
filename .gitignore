@@ -1,0 +1,11 @@
+/.envrc
+/.direnv
+
+/.idea
+
+/scripts/
+/config.json
+
+/node_modules/
+/dist/
+

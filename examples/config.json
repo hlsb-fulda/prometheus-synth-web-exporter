@@ -1,0 +1,20 @@
+{
+  "port": 13345,
+  "host": "127.0.0.1",
+  "targets": [
+    {
+      "name": "test1",
+      "script": "./scripts/test1.js",
+      "interval": "5min",
+      "settings": {
+        "username": "testuser",
+        "password": "testuser"
+      }
+    },
+    {
+      "name": "test2",
+      "script": "./scripts/test2.js",
+      "interval": "30min"
+    }
+  ]
+}

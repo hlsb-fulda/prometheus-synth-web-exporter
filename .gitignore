@@ -1,5 +1,6 @@
 /.envrc
 /.direnv
+/result
 
 /.idea
 
@@ -9,6 +10,4 @@
 /node_modules/
 /dist/
 /tsconfig.tsbuildinfo
-
-/result/
 

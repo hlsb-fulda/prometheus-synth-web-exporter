@@ -2,10 +2,15 @@ import * as path from "path";
 import * as fs from "fs";
 import { z } from "zod";
 import parseDuration from "parse-duration";
+import { bail } from "./utils.js";
 
 const duration = z
-  .string()
-  .refine((value) => (parseDuration(value, "s") ?? 0) > 0, {
+  .codec(z.string().min(1), z.number().min(0), {
+    decode: (value) =>
+      parseDuration(value, "s") ?? bail(`Invalid interval format "${value}"`),
+    encode: (value) => value.toString(),
+  })
+  .refine((value) => value > 0, {
     message: 'must be a positive duration such as "30s" or "5min"',
   });
 
@@ -13,6 +18,7 @@ const TargetSchema = z.strictObject({
   name: z.string().min(1),
   script: z.string().min(1),
   interval: duration,
+  timeout: duration.optional(),
   settings: z.record(z.string(), z.unknown()).optional(),
 });
 

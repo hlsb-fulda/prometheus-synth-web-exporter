@@ -87,6 +87,10 @@ To run the daemon, a config file must be created:
 A target will give the sequence a name and an interval at which it is executed.
 You can define more targets with different scripts and settings.
 
+Optionally, a target can set a `timeout` that limits the duration of one whole run.
+When a run exceeds it, the step that is currently running fails, the remaining steps are skipped, and the target is reported as failed.
+Without a `timeout` a run is not limited (only Playwright's own per-action timeouts apply).
+
 To start the daemon, run the following command:
 
 ```shell
@@ -99,14 +103,15 @@ The config file is validated on startup; problems are reported with their locati
 
 ### Configuration reference
 
-| Key        | Where  | Description                                             |
-| ---------- | ------ | ------------------------------------------------------- |
-| `port`     | root   | Port of the metrics endpoint (required).                |
-| `host`     | root   | Address to bind to. Default: all interfaces.            |
-| `name`     | target | Unique name; used as the `target` label.                |
-| `script`   | target | Path to the script, relative to the config file.        |
-| `interval` | target | Time between runs, e.g. `30s`, `5min`.                  |
-| `settings` | target | Values injected into the script as globals (see below). |
+| Key        | Where  | Description                                                                  |
+| ---------- | ------ | ---------------------------------------------------------------------------- |
+| `port`     | root   | Port of the metrics endpoint (required).                                     |
+| `host`     | root   | Address to bind to. Default: all interfaces.                                 |
+| `name`     | target | Unique name; used as the `target` label.                                     |
+| `script`   | target | Path to the script, relative to the config file.                             |
+| `interval` | target | Time between runs, e.g. `30s`, `5min`.                                       |
+| `timeout`  | target | Maximum duration of one run, all steps together, e.g. `2min`. Default: none. |
+| `settings` | target | Values injected into the script as globals (see below).                      |
 
 ### Target settings
 

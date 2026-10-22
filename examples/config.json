@@ -14,7 +14,8 @@
     {
       "name": "test2",
       "script": "./scripts/test2.js",
-      "interval": "30min"
+      "interval": "30min",
+      "timeout": "5min"
     }
   ]
 }

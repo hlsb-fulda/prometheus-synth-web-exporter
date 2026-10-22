@@ -2,8 +2,7 @@ import prom from "@prometheus-io/client";
 import { load as loadConfig } from "./config.js";
 import { AsyncTask, SimpleIntervalJob, ToadScheduler } from "toad-scheduler";
 import playwright from "playwright";
-import { bail, describeError } from "./utils.js";
-import parseDuration from "parse-duration";
+import { describeError } from "./utils.js";
 import { Sequence } from "./engine.js";
 import { consola } from "consola";
 import express from "express";
@@ -76,13 +75,6 @@ export default async function main(configPath: string) {
 
   // Create and schedule tasks
   for (const target of config.targets) {
-    // Parse the interval configuration
-    const intervalSeconds =
-      parseDuration(target.interval, "s") ??
-      bail(
-        `Invalid interval format "${target.interval}" for target ${target.name}`,
-      );
-
     const sequence = await Sequence.load(target.name, target.script, {
       timeout: 5000,
       context: target.settings ?? {},
@@ -93,7 +85,7 @@ export default async function main(configPath: string) {
       `target-${sequence.name}`,
       async () => {
         consola.debug(`Running check ${sequence.name}`);
-        const result = await sequence.run(browser);
+        const result = await sequence.run(browser, { timeout: target.timeout });
 
         if (!result.success) {
           consola.warn(
@@ -123,7 +115,7 @@ export default async function main(configPath: string) {
         targetExecutionTime
           .labels(sequence.name)
           .set(new Date().getTime() / 1000.0);
-        targetExecutionInterval.labels(sequence.name).set(intervalSeconds);
+        targetExecutionInterval.labels(sequence.name).set(target.interval);
       },
       (err) => {
         consola.error(`${sequence.name} crashed:`, err);
@@ -134,7 +126,7 @@ export default async function main(configPath: string) {
     scheduler.addIntervalJob(
       new SimpleIntervalJob(
         {
-          seconds: intervalSeconds,
+          seconds: target.interval,
           runImmediately: true,
         },
         task,

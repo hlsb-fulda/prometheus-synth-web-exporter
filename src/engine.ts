@@ -3,6 +3,7 @@ import { expect } from "playwright/test";
 import * as path from "path";
 import * as fs from "fs";
 import * as vm from "vm";
+import { timeout } from "./utils.js";
 
 export type StepStatus = "success" | "failure" | "skipped";
 
@@ -112,6 +113,10 @@ export interface SequenceOptions {
   context?: Record<string, unknown>;
 }
 
+export interface RunOptions {
+  timeout?: number | undefined;
+}
+
 export class Sequence {
   private constructor(
     public readonly name: string,
@@ -157,17 +162,37 @@ export class Sequence {
     return new Sequence(name, Object.freeze(steps));
   }
 
-  public async run(browser: Browser): Promise<SequenceResult> {
+  public async run(
+    browser: Browser,
+    options: RunOptions = {},
+  ): Promise<SequenceResult> {
     const browserContext = await browser.newContext();
     const page = await browserContext.newPage();
 
     const startTime = performance.now();
 
+    // The total deadline for this sequence
+    const deadline = startTime + (options.timeout ?? Infinity);
+
     try {
       const successfulSteps: SuccessfulStepResult[] = [];
 
       for (const [i, step] of this.steps.entries()) {
-        const result = await step.run(page);
+        const stepStartTime = performance.now();
+
+        // Calculate remaining time for this step until global deadline
+        const remainingMs = deadline - stepStartTime;
+
+        const result = await timeout(
+          remainingMs,
+          step.run(page),
+          `Step run timed out after ${(remainingMs / 1000).toFixed(2)}s`,
+        ).catch((err: unknown): FailedStepResult => ({
+          name: step.name,
+          status: "failure",
+          reason: err,
+          durationMs: performance.now() - stepStartTime,
+        }));
 
         if (result.status === "failure") {
           const skippedSteps: SkippedStepResult[] = this.steps

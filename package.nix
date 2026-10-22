@@ -53,7 +53,7 @@ stdenv.mkDerivation (finalAttrs: {
   installPhase = ''
     runHook preInstall
 
-    pnpm deploy --prod --offline --ignore-scripts $out/lib/${finalAttrs.pname}
+    pnpm deploy --filter . --prod --offline --ignore-scripts $out/lib/${finalAttrs.pname}
 
     makeWrapper ${lib.getExe nodejs} $out/bin/${finalAttrs.pname} \
       --add-flags $out/lib/${finalAttrs.pname}/dist/cli.js \

@@ -138,6 +138,7 @@ export class Sequence {
     const context = vm.createContext({
       console,
       expect,
+      process,
       step: (name: string, fn: (page: Page) => Promise<void>) => {
         // Ensure step name is unique
         if (steps.some((existing) => existing.name === name)) {

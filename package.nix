@@ -1,68 +1,99 @@
 {
   lib,
-  stdenv,
-  nodejs,
-  pnpm,
-  pnpmConfigHook,
-  fetchPnpmDeps,
+  buildNpmPackage,
+  importNpmLock,
   makeWrapper,
   playwright-driver,
+  playwright-test,
+  pkgs,
 }:
 
+buildNpmPackage (finalAttrs:
 let
-  packageJson = lib.importJSON ./package.json;
+  packageLock = lib.importJSON "${finalAttrs.src}/package-lock.json";
 
-in
-stdenv.mkDerivation (finalAttrs: {
+  mkArchive = name: path: pkgs.runCommand "${name}.tgz" {
+    nativeBuildInputs = with pkgs; [ gnutar gzip ];
+  } ''
+    tar -czf "$out" -C '${path}' .
+  '';
+
+in {
   pname = "prometheus-synth-web-exporter";
-  inherit (packageJson) version;
+  inherit (packageLock) version;
 
   src = lib.fileset.toSource {
     root = ./.;
     fileset = lib.fileset.unions [
       ./src
       ./package.json
-      ./pnpm-lock.yaml
-      ./pnpm-workspace.yaml
+      ./package-lock.json
       ./tsconfig.json
     ];
   };
 
+  # Use the patched depenencies from the npm import below
+  postPatch = ''
+    cp --no-preserve=mode '${finalAttrs.npmDeps}/package.json' ./package.json
+    cp --no-preserve=mode '${finalAttrs.npmDeps}/package-lock.json' ./package-lock.json
+  '';
+
   nativeBuildInputs = [
-    nodejs
-    pnpm
-    pnpmConfigHook
     makeWrapper
   ];
 
-  pnpmDeps = fetchPnpmDeps {
-    inherit (finalAttrs) pname version src;
-    inherit pnpm;
-    fetcherVersion = 4;
-    hash = "sha256-I44d2vHKQ2J1ddvPKs1FnQ+cYQb0hcEGjPyKNs1y0aM=";
+  # We need to inject the nixpks provided browsers because we can not use the upstream
+  # provided ones. As the playwright-core version determines the exact path relative to
+  # PLAYWRIGHT_BROWSERS_PATH, therefore the versions of playwright-core used by nodejs
+  # and provided by nixpkgs must match. This forcefully injects the versions provided
+  # by nixpkgs into the npm dependency tree.
+  npmDeps = importNpmLock {
+    npmRoot = finalAttrs.src;
+
+    packageSourceOverrides = {
+      "node_modules/playwright" = mkArchive "playwright" "${playwright-test}/lib/node_modules/playwright";
+      "node_modules/playwright-core" = mkArchive "playwright-core" "${playwright-test}/lib/node_modules/playwright-core";
+    };
+
+    packageLock = lib.recursiveUpdate packageLock {
+      packages = {
+        "" = {
+          dependencies."playwright" = "${playwright-driver.version}";
+        };
+
+        "node_modules/playwright" = {
+          version = playwright-driver.version;
+          integrity = null;
+          dependencies."playwright-core" = playwright-driver.version;
+        };
+
+        "node_modules/playwright-core" = {
+          version = playwright-driver.version;
+          integrity = null;
+        };
+      };
+    };
   };
 
-  buildPhase = ''
-    runHook preBuild
+  #dontNpmPrune = true;
 
-    pnpm run build
+  npmConfigHook = importNpmLock.npmConfigHook;
 
-    runHook postBuild
-  '';
+  makeWrapperArgs = [
+    "--set PLAYWRIGHT_BROWSERS_PATH ${finalAttrs.passthru.playwright-browsers}"
+    "--set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD 1"
+    "--set PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS 1"
+  ];
 
-  installPhase = ''
-    runHook preInstall
-
-    pnpm deploy --filter . --prod --offline --ignore-scripts $out/lib/${finalAttrs.pname}
-
-    makeWrapper ${lib.getExe nodejs} $out/bin/${finalAttrs.pname} \
-      --add-flags $out/lib/${finalAttrs.pname}/dist/cli.js \
-      --set PLAYWRIGHT_BROWSERS_PATH ${playwright-driver.browsers} \
-      --set PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD 1 \
-      --set PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS 1
-
-    runHook postInstall
-  '';
+  passthru = {
+    playwright-browsers = playwright-driver.selectBrowsers {
+      withChromiumHeadlessShell = true;
+      withChromium = true;
+      withFirefox = false;
+      withWebkit = false;
+      withFfmpeg = false;
+    };
+  };
 
   meta = {
     description = "Prometheus exporter for synthetic web monitoring with Playwright";

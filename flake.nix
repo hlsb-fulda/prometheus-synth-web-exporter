@@ -18,7 +18,6 @@
     devShells.default = pkgs.mkShell {
       buildInputs = with pkgs; [
         nodejs_26
-        pnpm
         playwright-driver.browsers
       ];
 
